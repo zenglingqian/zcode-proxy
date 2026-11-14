@@ -10,10 +10,10 @@ settings.json
 # ===== 构建产物（合计约 750MB，且 GitHub 单文件上限 100MB） =====
 vendor/
 tools/
-ZCodeProxy-Setup.exe
 
 # ===== 日志 =====
 *.log
 
 # ===== Node =====
 node_modules/
+ZCodeProxy-Setup-v1.0.0.exe
