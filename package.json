@@ -1,0 +1,8 @@
+{
+  "name": "zcode-proxy",
+  "version": "2.0.0",
+  "description": "ZCode 反向代理 · 把 ZCode agent 通过 OpenAI 兼容 API 提供给其他软件",
+  "main": "desktop/main.js",
+  "author": "ZCodeProxy",
+  "license": "MIT"
+}

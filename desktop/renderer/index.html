@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZCode 反向代理</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --card: #ffffff; --line: #e8e8ed; --txt: #1d1d1f; --sub: #86868b;
+    --ok: #30d158; --ok-deep: #1a7f37; --warn: #ff9f0a; --bad: #ff3b30; --acc: #0071e3; --acc-press: #0060c9;
+    --radius: 16px; --shadow: 0 1px 3px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.05);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; user-select: none; }
+  html, body { height: 100%; }
+  body { font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--txt); overflow-y: auto; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 28px 22px 48px; }
+  .header { display: flex; align-items: baseline; gap: 10px; padding: 4px 6px 18px; }
+  .header h1 { font-size: 26px; font-weight: 700; letter-spacing: .2px; }
+  .header .ver { color: var(--sub); font-size: 13px; }
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 22px 24px; margin-bottom: 16px; }
+  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+  .muted { color: var(--sub); font-size: 13px; }
+  .code { font-family: "SF Mono", ui-monospace, Consolas, monospace; font-size: 12px; background: #f5f5f7; border-radius: 6px; padding: 2px 8px; user-select: text; }
+
+  /* ---- 主开关卡 ---- */
+  .power { text-align: center; padding: 30px 24px 26px; }
+  .switch { position: relative; width: 92px; height: 52px; border-radius: 26px; background: #dcdde1; cursor: pointer; transition: background .3s ease; display: inline-block; }
+  .switch.on { background: var(--ok); box-shadow: 0 4px 14px rgba(48,209,88,.35); }
+  .knob { position: absolute; top: 3px; left: 3px; width: 46px; height: 46px; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.18); transition: left .3s cubic-bezier(.3,.9,.4,1.2); }
+  .switch.on .knob { left: 43px; }
+  .power .state { font-size: 21px; font-weight: 700; margin-top: 14px; }
+  .power .state.run { color: var(--ok-deep); }
+  .power .state.stop { color: var(--sub); }
+  .power .urls { margin-top: 10px; }
+  .pill { display: inline-block; padding: 3px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+  .pill.ok { background: #dcfce8; color: var(--ok-deep); }
+  .pill.warn { background: #fef3c7; color: #92400e; }
+  .pill.bad { background: #fee2e2; color: #b91c1c; }
+  .pill.gray { background: #f0f0f2; color: var(--sub); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); } .dot.gray { background: #c7c7cc; }
+
+  /* ---- 账号卡 ---- */
+  .acct { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+  .acct:last-child { margin-bottom: 0; }
+  .acct .top { display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: #fff; flex: none; }
+  .avatar.zai { background: linear-gradient(135deg, #6e8efb, #a16efb); }
+  .avatar.bigmodel { background: linear-gradient(135deg, #34c5f0, #2f7cf6); }
+  .acct .name { font-size: 15px; font-weight: 600; }
+  .acct .fam { color: var(--sub); font-size: 12px; }
+  .acct .spacer { flex: 1; }
+  .acct .reason { margin-top: 9px; font-size: 12.5px; color: var(--bad); background: #fff5f5; border-radius: 8px; padding: 7px 10px; word-break: break-all; user-select: text; }
+  .acct .btns { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .acct .meta { margin-top: 8px; font-size: 12px; color: var(--sub); }
+
+  button { font: inherit; border: none; border-radius: 9px; padding: 7px 15px; cursor: pointer; font-size: 13px; font-weight: 500; background: #f0f0f2; color: var(--txt); transition: filter .15s, transform .05s; }
+  button:hover { filter: brightness(.96); }
+  button:active { transform: scale(.97); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--acc); color: #fff; }
+  button.danger { background: #feecec; color: var(--bad); }
+  button.small { padding: 5px 12px; font-size: 12px; }
+
+  /* ---- 设置 ---- */
+  .setting { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f0f0f2; }
+  .setting:last-child { border-bottom: none; }
+  .setting .lab { font-size: 14px; font-weight: 500; }
+  .setting .desc { font-size: 12px; color: var(--sub); margin-top: 3px; }
+  .ios-switch { position: relative; width: 46px; height: 28px; border-radius: 15px; background: #dcdde1; cursor: pointer; transition: background .25s; flex: none; }
+  .ios-switch.on { background: var(--ok); }
+  .ios-switch .knob { position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.2); transition: left .25s; }
+  .ios-switch.on .knob { left: 20px; }
+  .radio-group { display: flex; gap: 8px; }
+  .radio-btn { padding: 6px 14px; border-radius: 9px; font-size: 13px; background: #f0f0f2; cursor: pointer; font-weight: 500; }
+  .radio-btn.on { background: var(--acc); color: #fff; }
+
+  /* ---- 折叠与日志 ---- */
+  details summary { cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--acc); list-style: none; }
+  details summary::before { content: "▸ "; }
+  details[open] summary::before { content: "▾ "; }
+  pre { font-family: "SF Mono", ui-monospace, Consolas, monospace; font-size: 11.5px; background: #f5f5f7; border-radius: 10px; padding: 12px 14px; margin-top: 10px; overflow-x: auto; user-select: text; line-height: 1.7; color: #333; }
+  #log { font-family: "SF Mono", ui-monospace, monospace; font-size: 11px; color: var(--sub); max-height: 92px; overflow-y: auto; background: #f5f5f7; border-radius: 10px; padding: 10px 12px; user-select: text; line-height: 1.6; }
+  .toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px); background: rgba(29,29,31,.92); color: #fff; font-size: 13px; padding: 10px 18px; border-radius: 99px; opacity: 0; transition: all .3s; pointer-events: none; max-width: 80%; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header"><h1>ZCode 反向代理</h1><span class="ver">把 ZCode agent 通过 OpenAI API 提供给其他软件</span></div>
+
+  <!-- 主开关 -->
+  <div class="card power">
+    <div class="switch" id="mainSwitch" title="启动 / 停止反向代理"><div class="knob"></div></div>
+    <div class="state stop" id="stateText">已停止</div>
+    <div class="urls muted">OpenAI Base URL：<span class="code" id="baseUrl" style="user-select:text" title="点击复制"></span>　<span id="enginePill"></span></div>
+  </div>
+
+  <!-- 账号 -->
+  <div class="card">
+    <h2>账号</h2>
+    <div id="accounts"></div>
+    <div class="msg muted" id="loginMsg" style="margin-top:10px; font-size:12.5px; line-height:1.7"></div>
+  </div>
+
+  <!-- 连接信息 -->
+  <div class="card">
+    <h2>客户端接入</h2>
+    <details>
+      <summary>查看模型列表与接入示例</summary>
+      <table style="width:100%; border-collapse:collapse; font-size:13px; margin-top:12px" id="models"></table>
+      <pre id="curlExample"></pre>
+    </details>
+    <div class="muted" style="margin-top:10px; font-size:12.5px; line-height:1.8">
+      多轮记忆：请求头 <span class="code">X-Zcode-Session-Id</span> 带上响应返回的会话 ID<br>
+      API Key：<span class="code">config.json</span> 的 <span class="code">apiKey</span>（留空 = 不鉴权）
+    </div>
+  </div>
+
+  <!-- 设置 -->
+  <div class="card">
+    <h2>设置</h2>
+    <div class="setting">
+      <div><div class="lab">关闭窗口时</div><div class="desc">最小化到托盘：服务继续运行，托盘图标可还原窗口</div></div>
+      <div class="radio-group" id="closeAction">
+        <div class="radio-btn" data-v="tray">最小化到托盘</div>
+        <div class="radio-btn" data-v="quit">退出程序</div>
+      </div>
+    </div>
+    <div class="setting">
+      <div><div class="lab">开机自动启动</div><div class="desc">登录 Windows 后在托盘静默启动并恢复代理状态</div></div>
+      <div class="ios-switch" id="autoStart"><div class="knob"></div></div>
+    </div>
+  </div>
+
+  <!-- 日志 -->
+  <div class="card">
+    <h2>运行日志</h2>
+    <div id="log">等待事件…</div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let loginPolling = null;
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), 2600);
+}
+function pill(status) {
+  const map = {
+    ok: ['ok', '运行正常'], expired: ['bad', '凭据过期'], error: ['bad', '异常'],
+    unknown: ['warn', '未检测'], missing: ['gray', '未添加'],
+  };
+  const [cls, label] = map[status] || map.unknown;
+  return `<span class="pill ${cls}"><span class="dot ${cls}"></span>${label}</span>`;
+}
+function copyText(text) { navigator.clipboard.writeText(text).then(() => toast('已复制')); }
+
+$('baseUrl').addEventListener('click', () => copyText($('baseUrl').textContent));
+
+$('mainSwitch').addEventListener('click', async () => {
+  const sw = $('mainSwitch');
+  if (sw._busy) return;
+  sw._busy = true;
+  const on = !sw.classList.contains('on');
+  $('stateText').textContent = '切换中…';
+  try {
+    const r = await window.zc.toggleProxy(on);
+    if (r && r.error) toast('切换失败：' + r.error);
+    else toast(on ? '反向代理已启动' : '反向代理已停止');
+  } catch (e) {
+    toast('切换失败：' + (e.message || e));
+  } finally {
+    sw._busy = false;
+    sw.style.pointerEvents = '';
+    await refresh();
+  }
+});
+
+$('closeAction').addEventListener('click', async (e) => {
+  const v = e.target.dataset && e.target.dataset.v;
+  if (!v) return;
+  await window.zc.setSettings({ closeAction: v });
+  refresh();
+});
+$('autoStart').addEventListener('click', async () => {
+  const on = !$('autoStart').classList.contains('on');
+  await window.zc.setSettings({ launchAtLogin: on });
+  refresh();
+  toast(on ? '已开启开机自启' : '已关闭开机自启');
+});
+
+async function startLogin(family) {
+  const r = await window.zc.addAccount(family);
+  if (!r.ok) { toast('发起失败：' + r.error); return; }
+  toast(r.browserOpened ? '已打开浏览器，请完成授权' : '未能自动打开浏览器：请在下方复制授权网址手动打开');
+  if (!loginPolling) {
+    loginPolling = setInterval(async () => {
+      const s = await window.zc.getState();
+      renderLogin(s.login);
+      renderAccounts(s);
+      if (s.login.state !== 'waiting') {
+        clearInterval(loginPolling); loginPolling = null;
+        if (s.login.state === 'success') toast('登录成功');
+      }
+    }, 1500);
+  }
+}
+function renderLogin(login) {
+  const el = $('loginMsg');
+  window.__loginUrl = login.url || '';
+  if (login.state === 'waiting') {
+    const urlPart = login.url
+      ? `<br><div style="margin-top:6px">授权网址：<span class="code" style="user-select:text;word-break:break-all">${login.url}</span></div>
+         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+           <button class="small" onclick="copyText(window.__loginUrl)">复制授权网址</button>
+           <button class="small" onclick="window.zc.openUrl(window.__loginUrl)">再试打开浏览器</button>
+         </div>
+         <div class="muted" style="margin-top:6px;font-size:12px">若浏览器未自动打开，请复制上方网址到浏览器手动打开并完成授权</div>`
+      : '<br>正在获取授权网址…';
+    el.innerHTML = `⏳ ${login.message}${urlPart}`;
+  } else if (login.state === 'success') {
+    el.innerHTML = '✅ 登录成功，凭据已就绪。';
+  } else if (login.state === 'failed' || login.state === 'timeout') {
+    el.innerHTML = '❌ ' + login.message;
+  } else if (login.state === 'cancelled') {
+    el.innerHTML = '已取消。';
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+function renderAccounts(s) {
+  const el = $('accounts');
+  el.innerHTML = '';
+  for (const a of s.accounts) {
+    const div = document.createElement('div');
+    div.className = 'acct';
+    const nameLine = a.added
+      ? `<div><div class="name">${a.accountName || '已登录账号'}</div><div class="fam">${a.label}</div></div>`
+      : `<div><div class="name" style="color:var(--sub)">未添加账号</div><div class="fam">${a.label}</div></div>`;
+    let reason = '';
+    if (a.status === 'expired') reason = `<div class="reason">登录凭据已过期，模型调用会失败。点击「重新登录」完成授权即可恢复。</div>`;
+    else if (a.status === 'error' && a.lastError) reason = `<div class="reason">最近一次调用失败：${a.lastError.replace(/</g, '&lt;')}</div>`;
+    else if (a.status === 'unknown') reason = `<div class="reason muted" style="color:var(--sub)">已添加但尚未验证，点击「检测」确认可用性。</div>`;
+    let btns = '<div class="btns">';
+    if (!a.added) {
+      btns += `<button class="primary small" onclick="startLogin('${a.family}')">添加账号</button>`;
+    } else {
+      if (a.status === 'expired') btns += `<button class="primary small" onclick="startLogin('${a.family}')">重新登录</button>`;
+      btns += `<button class="small" onclick="testAccount('${a.family}')" ${s.proxyRunning ? '' : 'disabled'}>检测</button>`;
+      btns += `<button class="danger small" onclick="removeAccount('${a.family}')">删除账号</button>`;
+    }
+    btns += '</div>';
+    const meta = a.added && a.lastCallAt ? `<div class="meta">最近调用：${new Date(a.lastCallAt).toLocaleString('zh-CN')}</div>` : '';
+    div.innerHTML = `<div class="top"><div class="avatar ${a.family}">${a.family === 'zai' ? 'Z' : 'B'}</div>${nameLine}<div class="spacer"></div>${pill(a.status)}</div>${reason}${btns}${meta}`;
+    el.appendChild(div);
+  }
+  renderLogin(s.login);
+}
+
+async function testAccount(family) {
+  toast('检测中（真实调用一次，约需几秒）…');
+  const r = await window.zc.testAccount(family);
+  toast(r.ok ? '✅ 检测通过：' + (r.reply || '正常') : '❌ 检测失败：' + r.error);
+  refresh();
+}
+async function removeAccount(family) {
+  if (!confirm('删除该账号将清理其登录凭据（ZCode 桌面版的该体系登录也会退出）。确定删除？')) return;
+  await window.zc.removeAccount(family);
+  toast('已删除账号');
+  refresh();
+}
+
+function renderStatic(s) {
+  $('baseUrl').textContent = s.baseUrl;
+  $('models').innerHTML = '<tr><th style="text-align:left;padding:6px 8px;color:var(--sub)">模型名</th><th style="text-align:left;padding:6px 8px;color:var(--sub)">真实模型</th></tr>'
+    + s.models.map((m) => `<tr><td style="padding:6px 8px"><code class="code">${m.id}</code></td><td style="padding:6px 8px">${m.modelId}（思考:${m.reasoningLevel || '-'}）</td></tr>`).join('');
+  $('curlExample').textContent = [
+    'curl ' + s.baseUrl + '/chat/completions \\',
+    '  -H "Content-Type: application/json" \\',
+    '  -d \'{"model":"zcode","messages":[{"role":"user","content":"你好"}]}\'',
+  ].join('\n');
+}
+
+function renderMain(s) {
+  const sw = $('mainSwitch');
+  const on = s.proxyRunning;
+  sw.classList.toggle('on', on);
+  const st = $('stateText');
+  st.textContent = on ? '运行中' : '已停止';
+  st.className = 'state ' + (on ? 'run' : 'stop');
+  $('enginePill').innerHTML = on
+    ? (s.engineAlive ? '<span class="pill ok"><span class="dot ok"></span>引擎就绪</span>' : '<span class="pill warn"><span class="dot warn"></span>引擎启动中</span>')
+    : '<span class="pill gray">服务未运行</span>';
+  // 设置
+  document.querySelectorAll('#closeAction .radio-btn').forEach((b) => b.classList.toggle('on', b.dataset.v === s.settings.closeAction));
+  $('autoStart').classList.toggle('on', s.settings.launchAtLogin);
+}
+
+async function refresh() {
+  try {
+    const s = await window.zc.getState();
+    renderMain(s);
+    renderAccounts(s);
+    renderStatic(s);
+  } catch { /* 窗口关闭瞬间 */ }
+}
+
+window.zc.onUpdate('log', (line) => {
+  const el = $('log');
+  const div = document.createElement('div');
+  div.textContent = line;
+  el.prepend(div);
+  while (el.children.length > 40) el.removeChild(el.lastChild);
+});
+window.zc.onUpdate('state', (s) => { renderMain(s); renderAccounts(s); });
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

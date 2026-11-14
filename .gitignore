@@ -1,0 +1,19 @@
+# ===== 凭据与运行数据（绝对不能上传） =====
+runtime/
+zcode_daat/
+.zcode/
+
+# ===== 本地配置（apiKey 一旦设置会随文件泄露） =====
+config.json
+settings.json
+
+# ===== 构建产物（合计约 750MB，且 GitHub 单文件上限 100MB） =====
+vendor/
+tools/
+ZCodeProxy-Setup.exe
+
+# ===== 日志 =====
+*.log
+
+# ===== Node =====
+node_modules/

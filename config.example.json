@@ -1,0 +1,33 @@
+{
+  "port": 8787,
+  "host": "127.0.0.1",
+  "apiKey": "",
+  "zcodeExe": "",
+  "zcodeCjs": "",
+  "runtimeDir": "./runtime",
+  "tasksRoot": "",
+  "maxConcurrent": 4,
+  "timeoutMs": 1800000,
+  "includeReasoning": false,
+  "cors": true,
+  "models": [
+    {
+      "id": "zcode",
+      "providerId": "account:zai-start-plan",
+      "modelId": "GLM-5.3-Flash",
+      "reasoningLevel": "max",
+      "cwd": "",
+      "mode": "yolo",
+      "disallowedTools": []
+    },
+    {
+      "id": "zcode-bigmodel",
+      "providerId": "account:bigmodel-start-plan",
+      "modelId": "GLM-5.3-Flash",
+      "reasoningLevel": "max",
+      "cwd": "",
+      "mode": "yolo",
+      "disallowedTools": []
+    }
+  ]
+}
