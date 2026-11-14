@@ -223,6 +223,56 @@ function resolveZcodePaths(env = process.env) {
   return null;
 }
 
+// ---------- ZCode 产品版本探测 ----------
+
+/**
+ * 探测本机 ZCode 桌面版产品版本（如 3.18.2）。
+ * 2026-11-15 起上游 WAF 按客户端版本拦截旧/未知版本（405 + code 3012
+ * "request has been blocked due to unusual activity"）。引擎子进程必须像桌面版
+ * 一样报告当前产品版本（User-Agent: ZCode/<版本> + X-ZCode-App-Version 头），
+ * 引擎内部从 ZCODE_APP_VERSION 环境变量取该值，缺失时回退到 CLI 内置版本号
+ * ——会被 WAF 视为异常客户端。桌面版每次升级都会在
+ * <dataRoot>\.zcode\v2\runtime\provider\<平台>\<版本>\ 留下目录，据此探测。
+ * 优先级：显式传入 > 运行时 provider 版本目录 > app.asar 头部 package.json。
+ */
+function detectZcodeAppVersion(zcodeExe, log) {
+  try {
+    const base = path.join(resolveDataRoot(), '.zcode', 'v2', 'runtime', 'provider');
+    if (fs.existsSync(base)) {
+      const semverRe = /^\d+\.\d+\.\d+(?=\/|$)/;
+      const candidates = [];
+      for (const arch of fs.readdirSync(base)) {
+        const dir = path.join(base, arch);
+        try {
+          if (!fs.statSync(dir).isDirectory()) continue;
+          for (const v of fs.readdirSync(dir)) {
+            if (semverRe.test(v)) candidates.push(v);
+          }
+        } catch { /* ignore */ }
+      }
+      candidates.sort((a, b) => {
+        const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+        for (let i = 0; i < 3; i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pb[i] || 0) - (pa[i] || 0);
+        return 0;
+      });
+      if (candidates[0]) return candidates[0];
+    }
+  } catch (err) { log?.(`[appver] provider 运行时目录探测失败: ${err.message}`); }
+  try {
+    if (zcodeExe) {
+      const asar = path.join(path.dirname(zcodeExe), 'resources', 'app.asar');
+      if (fs.existsSync(asar)) {
+        const fd = fs.openSync(asar, 'r');
+        const buf = Buffer.alloc(262144);
+        try { fs.readSync(fd, buf, 0, buf.length, 0); } finally { fs.closeSync(fd); }
+        const m = buf.toString('latin1').match(/"version":\s*"(\d+\.\d+\.\d+)"/);
+        if (m) return m[1];
+      }
+    }
+  } catch (err) { log?.(`[appver] app.asar 探测失败: ${err.message}`); }
+  return '';
+}
+
 // ---------- 引擎 ----------
 
 const _shimFiles = { preload: null };
@@ -288,6 +338,7 @@ class ZcodeEngine {
     this.zcodeCjs = opts.zcodeCjs;
     this.log = opts.log || (() => {});
     this.engineLogDir = opts.engineLogDir;
+    this.zcodeAppVersion = opts.zcodeAppVersion || '';
     this.child = null;
     this.buf = '';
     this.pending = new Map(); // id -> resolve
@@ -331,12 +382,21 @@ class ZcodeEngine {
         }
       : {};
 
+    // 产品版本注入：上游 WAF 校验客户端版本，缺失/过旧即 405 3012 "unusual activity"
+    // 优先级：显式配置 > 已继承的环境值 > 自动探测（桌面版 provider 运行时目录 / app.asar）
+    const appVersion = this.zcodeAppVersion
+      || process.env.ZCODE_APP_VERSION
+      || detectZcodeAppVersion(this.zcodeExe, this.log);
+    if (appVersion) this.log(`[engine] 注入 ZCODE_APP_VERSION=${appVersion}`);
+    else this.log('[engine] 警告：未能探测 ZCode 产品版本，上游 WAF 可能拦截引擎请求（405 3012）');
+
     this.child = spawn(this.zcodeExe, [this.zcodeCjs, 'app-server', '--stdio'], {
       env: {
         ...process.env,
         ELECTRON_RUN_AS_NODE: '1',
         // 显式注入数据根：不依赖 shell 环境变量继承（双击启动/服务化可能丢失）
         ZCODE_DATA_BASE_DIR: resolveDataRoot(),
+        ...(appVersion ? { ZCODE_APP_VERSION: appVersion } : {}),
         ...(builtinConfigFile ? { ZCODE_BUILTIN_PROVIDER_CONFIG_FILE: builtinConfigFile } : {}),
         ...keyringEnv,
         ...(this.engineLogDir ? { ZCODE_LOG_DIR: this.engineLogDir } : {}),
@@ -705,6 +765,8 @@ async function getEngine(config) {
     zcodeCjs: config.zcodeCjs,
     log: config.log,
     engineLogDir: path.join(config.runtimeDir, 'engine-logs'),
+    // 可选：手动固定上报给上游的产品版本（留空 = 自动探测，见 detectZcodeAppVersion）
+    zcodeAppVersion: typeof config.zcodeAppVersion === 'string' ? config.zcodeAppVersion.trim() : '',
   });
   try {
     await singleton.start();

@@ -110,6 +110,7 @@ for chunk in r:
 | `port` / `host` | 8787 / 127.0.0.1 | 监听地址 |
 | `apiKey` | 空 | 非空时要求 `Authorization: Bearer <key>` |
 | `zcodeExe` / `zcodeCjs` | 空 | ZCode 桌面版路径，留空自动探测 |
+| `zcodeAppVersion` | 空 | 上报给上游的产品版本（如 3.18.2）；留空 = 自动探测（桌面版运行时目录 / app.asar），上游 WAF 校验客户端版本 |
 | `maxConcurrent` | 4 | 同时进行的回合上限，超出排队 |
 | `timeoutMs` | 1800000 | 单请求超时（30 分钟，agent 任务可能很久） |
 | `includeReasoning` | false | 流式时输出 `reasoning_content`（思考过程） |
@@ -150,11 +151,14 @@ for chunk in r:
 |---|---|
 | 账号卡显示「未登录」 | 在 ZCode 桌面版登录（凭据库共享，代理自动跟上） |
 | 调用报 401 | 凭据过期：桌面版重新登录一次，或点账号卡「重新登录」 |
+| 上游报 405 + code 3012 `request has been blocked due to unusual activity` | 上游 WAF 按客户端版本拦截旧版引擎。引擎启动时会自动探测桌面版版本并注入 `ZCODE_APP_VERSION`（日志可见）；若仍被拦截，升级 ZCode 桌面版后重启代理，或在 config.json 设 `zcodeAppVersion` 手动指定 |
+| 上游报 429 + code 3008 `user concurrency limit exceeded` | 同一账号并发回合超限：等在途回合结束再试；Start Plan 并发额度小，避免高频「检测」连点 |
 | `Provider Registry 中不存在 Model` | `providerId`/`modelId` 拼写不对（以 ZCode 模型选择器为准）；新版代理会自动重推快照恢复 |
 | 报「余额/资源包不足」 | 该账号体系无对应订阅，换另一个模型名（额度互相独立） |
 | `未知模型 "xxx"` | `model` 需与 `config.models[].id` 一致，见 `/v1/models` |
 | 端口被占用 | 代理可能已在运行：打开 `http://127.0.0.1:8787/` 确认，或改 `port` |
 | `无法读取 ZCode JWT` | 共享凭据库为空或不可解密：在 ZCode 桌面版重新登录 |
+| 登录向导报 `System credential storage is unavailable` | 无头登录的硬限制（需桌面会话的凭据 broker）：请在 ZCode 桌面版里登录该账号，登录后代理自动获取新凭据 |
 
 ## 已知边界
 

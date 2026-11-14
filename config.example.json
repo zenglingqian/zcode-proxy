@@ -4,6 +4,7 @@
   "apiKey": "",
   "zcodeExe": "",
   "zcodeCjs": "",
+  "zcodeAppVersion": "",
   "runtimeDir": "./runtime",
   "tasksRoot": "",
   "maxConcurrent": 4,

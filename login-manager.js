@@ -106,8 +106,15 @@ class LoginManager {
       session.state = state;
       // 失败时附带真实报错（stderr 末行），供界面直接展示原因
       if (state === 'failed') {
-        const errLine = stderrTail.trim().split(/\r?\n/).filter(Boolean).slice(-1)[0];
-        if (errLine) message += `：${errLine.slice(0, 200)}`;
+        const tail = stderrTail.trim();
+        // 已知硬限制：无头 CLI 登录需要桌面会话的官方凭据 broker（envForSession 动态生成），
+        // 缺失即报 "System credential storage is unavailable" —— 只能在 ZCode 桌面版里登录
+        if (/System credential storage is unavailable/i.test(tail)) {
+          message = 'ZCode 无头登录受系统凭据库限制，无法在此直接登录账号。请在 ZCode 桌面版中登录该账号（桌面版 → 设置/账号），登录成功后本代理会自动读取新凭据并恢复，无需任何操作。';
+        } else {
+          const errLine = tail.split(/\r?\n/).filter(Boolean).slice(-1)[0];
+          if (errLine) message += `：${errLine.slice(0, 200)}`;
+        }
       }
       session.message = message;
       clearTimeout(session._timer);
