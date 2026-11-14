@@ -1,0 +1,1079 @@
+<!doctype html>
+<!-- ZCodeProxy 发布页 · 基于 saas-landing 骨架（open-design 0.7.0, Apache-2.0）改造 · 视觉体系：Raycast 派生暗色开发者工具风 -->
+<html lang="zh-CN" data-zcode-design id="top">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="ZCodeProxy v1.0.0 — 把 ZCode 的完整 agent 能力变成 OpenAI 兼容的本地 API。下载 Windows 安装包，三步接入 Cherry Studio、Dify、Cline、OpenAI SDK。" />
+  <title>ZCodeProxy v1.0.0 — ZCode 的 OpenAI 兼容网关 · Windows 安装包</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff6363' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8h13'/%3E%3Cpath d='m14 5 3 3-3 3'/%3E%3Cpath d='M20 16H7'/%3E%3Cpath d='m10 13-3 3 3 3'/%3E%3C/svg%3E" />
+  <style>
+    /* ─── tokens · 色板源自 Raycast 派生设计系统，改这里即可全局换肤 ─── */
+    :root {
+      --bg: #07080a;            /* 近黑蓝底，非纯黑 */
+      --surface: #101111;       /* 卡片面 */
+      --surface-2: #1b1c1e;     /* 徽章 / 更亮容器 */
+      --fg: #f9f9f9;
+      --fg-soft: #cecece;
+      --muted: #9c9c9d;
+      --faint: #8a8b8c;         /* 细小注释文字（AA 达标） */
+      --dim: #6a6b6c;           /* 仅装饰性非文本元素 */
+      --border: rgba(255, 255, 255, 0.07);
+      --border-strong: rgba(255, 255, 255, 0.12);
+      --accent: #ff6363;        /* 品牌红：标点用，不做铺陈 */
+      --accent-soft: rgba(255, 99, 99, 0.12);
+      --info: #55b3ff;          /* 焦点环 / 代码关键词 */
+      --info-hover: #8ecaff;
+      --info-border: rgba(85, 179, 255, 0.35);
+      --ok: #5fc992;            /* 状态点 / 字符串 */
+      --btn-dark: #18191a;
+      --btn-bg: hsla(0, 0%, 100%, 0.815);
+      --btn-bg-hover: hsl(0, 0%, 100%);
+      --head-bg: rgba(7, 8, 10, 0.72);
+      --field-border: rgba(255, 255, 255, 0.09);
+      --border-soft: rgba(255, 255, 255, 0.1);
+      --ok-border: rgba(95, 201, 146, 0.4);
+      --danger-bg: rgba(255, 99, 99, 0.07);
+      --danger-border: rgba(255, 99, 99, 0.3);
+      --danger-ring: rgba(255, 99, 99, 0.35);
+      --stripe: rgba(255, 99, 99, 0.1);
+      --shadow-btn: rgba(0, 0, 0, 0.35) 0 8px 24px -8px;
+      --shadow-card: rgb(27, 28, 30) 0 0 0 1px, rgb(7, 8, 10) 0 0 0 1px inset, rgba(0, 0, 0, 0.5) 0 24px 64px -16px;
+
+      --font-display: "Segoe UI Variable Display", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      --font-body: "Segoe UI Variable Text", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      --font-mono: "Cascadia Mono", Consolas, "SFMono-Regular", ui-monospace, "Menlo", monospace;
+
+      --radius-card: 16px;
+      --maxw: 1120px;
+    }
+
+    /* ─── base ─── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-feature-settings: "tnum" 1; }
+    html, body { overflow-x: clip; }
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--fg);
+      font-size: 16px;
+      line-height: 1.65;
+      letter-spacing: 0.2px;    /* 暗底正字距，raycast 式呼吸感 */
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 32px; }
+    section { scroll-margin-top: 84px; }
+    code { font-family: var(--font-mono); font-size: 0.92em; }
+    a { color: inherit; }
+    :focus-visible { outline: 2px solid var(--info); outline-offset: 2px; border-radius: 4px; }
+    ::selection { background: var(--danger-ring); }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .lede { color: var(--fg-soft); }
+
+    /* ─── 按钮：raycast 式透明度过渡 ─── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      font: inherit;
+      cursor: pointer;
+      text-decoration: none;
+      border: 1px solid transparent;
+      transition: opacity 150ms ease, background 150ms ease, border-color 150ms ease;
+      white-space: nowrap;
+    }
+    .btn-pill {
+      background: var(--btn-bg);
+      color: var(--btn-dark);
+      border-radius: 999px;
+      padding: 13px 26px;
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: 0.01em;
+      box-shadow: var(--shadow-btn);
+    }
+    .btn-pill:hover { background: var(--btn-bg-hover); }
+    .btn-pill svg { flex-shrink: 0; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 13px 20px;
+      font-weight: 500;
+      font-size: 15px;
+    }
+    .btn-ghost:hover { color: var(--fg); }
+    .btn-sm { padding: 8px 16px; font-size: 13.5px; }
+
+    /* ─── 顶栏 ─── */
+    .site-head {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--head-bg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+    }
+    .site-head .wrap {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 62px;
+    }
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      text-decoration: none;
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 15.5px;
+      letter-spacing: 0.01em;
+    }
+    .logo svg { color: var(--accent); }
+    .nav-links { display: flex; gap: 26px; align-items: center; }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 150ms ease;
+    }
+    .nav-links a:hover { color: var(--fg); }
+    .head-right { display: flex; gap: 16px; align-items: center; }
+    .ver-chip {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 10px;
+    }
+
+    /* ─── hero ─── */
+    .hero { padding: 118px 0 104px; }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 56px;
+      align-items: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.05em;
+      color: var(--fg-soft);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 7px 14px;
+      margin-bottom: 26px;
+    }
+    .hero-badge .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--ok);
+      flex-shrink: 0;
+    }
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(38px, 4.6vw, 58px);
+      line-height: 1.12;
+      letter-spacing: -0.015em;
+      font-weight: 600;
+      margin-bottom: 22px;
+      max-width: 17em;
+    }
+    .hero h1 code {
+      color: var(--fg);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1px 10px;
+      font-size: 0.72em;
+      white-space: nowrap;
+    }
+    .hero .lede {
+      font-size: 17.5px;
+      line-height: 1.72;
+      max-width: 46ch;
+      margin-bottom: 36px;
+    }
+    .hero .lede strong { color: var(--fg); font-weight: 600; }
+    .hero-actions { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .hero-filehint {
+      margin-top: 18px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      color: var(--faint);
+    }
+
+    /* ─── 接入三字段卡（签名元素） ─── */
+    .hero-visual { position: relative; }
+    .stripes {
+      position: absolute;
+      right: -48px;
+      bottom: -72px;
+      width: 500px;
+      height: 500px;
+      background: repeating-linear-gradient(135deg, var(--stripe) 0 1.5px, transparent 1.5px 16px);
+      -webkit-mask-image: radial-gradient(closest-side, #000, transparent 72%);
+      mask-image: radial-gradient(closest-side, #000, transparent 72%);
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .connect-card {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--field-border);
+      border-radius: var(--radius-card);
+      padding: 24px 24px 20px;
+      box-shadow: var(--shadow-card);
+    }
+    .connect-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .connect-title strong { font-size: 14.5px; font-weight: 600; letter-spacing: 0.01em; }
+    .connect-title span {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      color: var(--faint);
+      white-space: nowrap;
+    }
+    .connect-title span i {
+      font-style: normal;
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--ok);
+      margin-right: 7px;
+    }
+    .field { margin-bottom: 14px; }
+    .field-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 7px;
+    }
+    .field-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--faint);
+    }
+    .field-value {
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      color: var(--fg);
+      background: var(--bg);
+      border: 1px solid var(--field-border);
+      border-radius: 8px;
+      padding: 10px 13px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .field-hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid var(--border-soft);
+      border-radius: 6px;
+      padding: 5px 10px;
+      cursor: pointer;
+      transition: color 150ms ease, border-color 150ms ease;
+    }
+    .copy-btn:hover { color: var(--fg); border-color: var(--border-strong); }
+    .copy-btn .ic-check { display: none; }
+    .copy-btn.copied { color: var(--ok); border-color: var(--ok-border); }
+    .copy-btn.copied .ic-copy { display: none; }
+    .copy-btn.copied .ic-check { display: block; }
+    .connect-foot {
+      border-top: 1px solid var(--border);
+      margin-top: 18px;
+      padding-top: 14px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.03em;
+      color: var(--muted);
+    }
+    .connect-foot .arr { color: var(--dim); padding: 0 7px; }
+
+    /* ─── 通用 section 头 ─── */
+    .section-pad { padding: 104px 0; }
+    .section-header { margin-bottom: 56px; max-width: 620px; }
+    .section-header h2 {
+      font-family: var(--font-display);
+      font-size: clamp(28px, 3.4vw, 40px);
+      line-height: 1.18;
+      letter-spacing: -0.012em;
+      font-weight: 600;
+      margin: 14px 0 12px;
+    }
+    .section-header p { color: var(--muted); font-size: 16px; max-width: 52ch; }
+
+    /* ─── 功能特性：非对称网格 ─── */
+    .features { border-top: 1px solid var(--border); }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr;
+      gap: 40px 32px;
+    }
+    .feature .num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      color: var(--faint);
+      display: block;
+      margin-bottom: 14px;
+    }
+    .feature h3 {
+      font-size: 19px;
+      font-weight: 600;
+      line-height: 1.35;
+      letter-spacing: 0.005em;
+      margin-bottom: 10px;
+    }
+    .feature p { color: var(--muted); font-size: 15px; line-height: 1.7; max-width: 44ch; }
+    .feature .fi { color: var(--fg-soft); margin-bottom: 14px; }
+    .feature-card {
+      grid-column: span 2;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 28px;
+    }
+    .feature-card p { max-width: 56ch; }
+    .chip-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+    .chip {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.03em;
+      color: var(--fg-soft);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 11px;
+    }
+    @media (max-width: 900px) {
+      .feature-grid { grid-template-columns: 1fr; gap: 36px; }
+      .feature-card { grid-column: span 1; }
+    }
+
+    /* ─── 兼容软件带 ─── */
+    .proof { text-align: center; padding: 72px 0; border-top: 1px solid var(--border); }
+    .proof .eyebrow { display: block; margin-bottom: 26px; }
+    .proof-logos {
+      display: flex;
+      justify-content: center;
+      gap: 20px 48px;
+      flex-wrap: wrap;
+      align-items: baseline;
+    }
+    .proof-logo {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      color: var(--dim);
+      transition: color 150ms ease;
+    }
+    .proof-logo:hover { color: var(--fg-soft); }
+
+    /* ─── 三步接入 ─── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 40px;
+      position: relative;
+      margin-bottom: 56px;
+    }
+    .steps::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: var(--border-strong);
+    }
+    .step { padding-top: 26px; }
+    .step-num {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      color: var(--faint);
+      display: inline-block;
+      background: var(--bg);
+      padding-right: 14px;
+      margin: -33px 0 16px;
+      position: relative;
+    }
+    .step h3 { font-size: 18px; font-weight: 600; margin-bottom: 10px; }
+    .step p { color: var(--muted); font-size: 15px; line-height: 1.7; max-width: 40ch; }
+    .step p code {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 1px 6px;
+      color: var(--fg-soft);
+      font-size: 12.5px;
+    }
+    @media (max-width: 900px) {
+      .steps { grid-template-columns: 1fr; gap: 36px; }
+      .steps::before { display: none; }
+      .step { border-top: 1px solid var(--border-strong); }
+      .step-num { margin: 0 0 16px; padding-right: 0; }
+    }
+
+    /* 代码块 */
+    .code {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .code-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .code-head span {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      letter-spacing: 0.08em;
+      color: var(--faint);
+      text-transform: uppercase;
+    }
+    .code pre {
+      padding: 18px 20px;
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      line-height: 1.75;
+      letter-spacing: 0;
+      color: var(--fg-soft);
+      overflow-x: auto;
+    }
+    .code .k { color: var(--info); }
+    .code .s { color: var(--ok); }
+    .code .c { color: var(--faint); }
+
+    /* ─── 边界与安全 ─── */
+    .limits-grid {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 48px;
+      align-items: start;
+    }
+    .limits-list { list-style: none; }
+    .limits-list li {
+      display: flex;
+      gap: 14px;
+      padding: 15px 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--fg-soft);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+    .limits-list li:last-child { border-bottom: none; }
+    .limits-list .dash { color: var(--dim); flex-shrink: 0; font-family: var(--font-mono); }
+    .danger-card {
+      background: var(--danger-bg);
+      border: 1px solid var(--danger-border);
+      border-radius: var(--radius-card);
+      padding: 26px 28px;
+    }
+    .danger-card .di { color: var(--accent); margin-bottom: 14px; }
+    .danger-card h3 { font-size: 17px; font-weight: 600; margin-bottom: 10px; }
+    .danger-card p { color: var(--fg-soft); font-size: 14.5px; line-height: 1.72; margin-bottom: 8px; }
+    .danger-card .chip { margin-top: 8px; }
+    .danger-card .chip-row { margin-top: 14px; }
+    @media (max-width: 900px) {
+      .limits-grid { grid-template-columns: 1fr; gap: 36px; }
+    }
+
+    /* ─── FAQ + 发布信息 ─── */
+    .faq-inner { max-width: 780px; margin: 0 auto; }
+    .faq-list details { border-bottom: 1px solid var(--border); }
+    .faq-list summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      padding: 20px 4px;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--fg);
+      transition: color 150ms ease;
+    }
+    .faq-list summary::-webkit-details-marker { display: none; }
+    .faq-list summary:hover { color: var(--fg-soft); }
+    .faq-list summary .pm {
+      font-family: var(--font-mono);
+      color: var(--faint);
+      font-size: 15px;
+      flex-shrink: 0;
+      transition: transform 150ms ease;
+    }
+    .faq-list details[open] summary .pm { transform: rotate(45deg); }
+    .faq-list details p {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.72;
+      padding: 0 4px 22px;
+      max-width: 62ch;
+    }
+    .release-info {
+      margin-top: 56px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      padding: 26px 28px;
+    }
+    .release-info h3 {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--faint);
+      font-weight: 500;
+      margin-bottom: 18px;
+    }
+    .ri-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px 40px;
+      margin-bottom: 18px;
+    }
+    .ri-grid div { display: flex; gap: 12px; font-size: 14px; }
+    .ri-grid dt { color: var(--faint); flex-shrink: 0; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; padding-top: 2px; }
+    .ri-grid dd { color: var(--fg-soft); font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.02em; }
+    .ri-grid dd a, .faq-list p a {
+      color: var(--info);
+      text-decoration: none;
+      border-bottom: 1px solid var(--info-border);
+      transition: color 150ms ease, border-color 150ms ease;
+    }
+    .ri-grid dd a:hover, .faq-list p a:hover { color: var(--info-hover); border-bottom-color: var(--info-hover); }
+    .ri-note {
+      font-size: 12.5px;
+      color: var(--faint);
+      line-height: 1.7;
+      margin: 2px 0 16px;
+      max-width: 56ch;
+    }
+    @media (max-width: 640px) { .ri-grid { grid-template-columns: 1fr; } }
+    .sha-row {
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+    .sha-row .field-top { margin-bottom: 8px; }
+    .sha-code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      color: var(--muted);
+      background: var(--bg);
+      border: 1px solid var(--field-border);
+      border-radius: 8px;
+      padding: 10px 13px;
+      word-break: break-all;
+      line-height: 1.7;
+    }
+
+    /* ─── 尾部 CTA ─── */
+    .closing {
+      background: var(--accent);
+      color: var(--btn-dark);
+      text-align: center;
+      padding: 96px 0;
+    }
+    .closing h2 {
+      font-family: var(--font-display);
+      font-size: clamp(30px, 4.2vw, 48px);
+      line-height: 1.14;
+      letter-spacing: -0.015em;
+      font-weight: 700;
+      margin-bottom: 16px;
+      max-width: 22ch;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .closing p {
+      color: var(--btn-dark);
+      max-width: 46ch;
+      margin: 0 auto 34px;
+      font-size: 16.5px;
+      line-height: 1.7;
+    }
+    .closing .btn-pill { background: var(--btn-bg-hover); }
+    .closing .btn-pill:hover { opacity: 0.88; background: var(--btn-bg-hover); }
+    .closing .filehint {
+      margin-top: 18px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      color: var(--btn-dark);
+    }
+    .closing .filehint a {
+      color: var(--btn-dark);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    /* ─── 页脚 ─── */
+    footer { padding: 38px 0; border-top: 1px solid var(--border); }
+    footer .wrap {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    footer .mono {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      letter-spacing: 0.08em;
+      color: var(--faint);
+      text-transform: uppercase;
+    }
+    footer .links { display: flex; gap: 22px; }
+    footer .links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13.5px;
+      transition: color 150ms ease;
+    }
+    footer .links a:hover { color: var(--fg); }
+
+    /* ─── 动效：单次入场，reduced motion 全关 ─── */
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: none; }
+    }
+    .rise { animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    .rise-1 { animation-delay: 0.04s; }
+    .rise-2 { animation-delay: 0.14s; }
+    .rise-3 { animation-delay: 0.26s; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+
+    /* ─── 响应式 ─── */
+    @media (max-width: 1024px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 52px; }
+      .hero { padding: 88px 0 88px; }
+      .stripes { right: 0; bottom: -140px; width: 420px; }
+    }
+    @media (max-width: 700px) {
+      .nav-links { display: none; }
+      .wrap { padding: 0 22px; }
+      .hero h1 { font-size: clamp(30px, 8vw, 38px); }
+      .hero .lede { font-size: 16px; }
+      .section-pad { padding: 76px 0; }
+      .connect-title span { display: none; }
+    }
+    @media (max-width: 480px) {
+      .ver-chip { display: none; }
+      .hero-badge { font-size: 11px; letter-spacing: 0.02em; padding: 6px 12px; }
+      .hero-actions .btn-pill { width: 100%; justify-content: center; }
+      .hero-actions .btn-ghost { width: 100%; justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+<header class="site-head" data-od-id="topnav">
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="ZCodeProxy 首页">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 8h13"/><path d="m14 5 3 3-3 3"/><path d="M20 16H7"/><path d="m10 13-3 3 3 3"/>
+      </svg>
+      ZCodeProxy
+    </a>
+    <nav class="nav-links" aria-label="页面导航">
+      <a href="#features">功能</a>
+      <a href="#setup">接入</a>
+      <a href="#limits">边界</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+    <div class="head-right">
+      <span class="ver-chip">v1.0.0</span>
+      <a class="btn btn-pill btn-sm" href="https://github.com/zenglingqian/zcode-proxy/releases/latest/download/ZCodeProxy-Setup-v1.0.0.exe">下载安装包</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- ─── HERO ─── -->
+  <section class="hero" data-od-id="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="hero-badge rise rise-1"><span class="dot" aria-hidden="true"></span>v1.0.0 · Windows x64 · 98.96 MB · 本机运行</span>
+        <h1 class="rise rise-1">ZCode 的完整 agent，现在是一个 OpenAI 接口。</h1>
+        <p class="lede rise rise-2">安装一个常驻托盘的桌面应用，任何支持自定义 OpenAI 接口的软件——Cherry Studio、Dify、Cline、OpenAI SDK——填入本机地址就能用。<strong>背后执行的是完整 ZCode agent：读写文件、执行命令、使用技能</strong>，就像在 ZCode 输入框里说话一样。</p>
+        <div class="hero-actions rise rise-3">
+          <a class="btn btn-pill" href="https://github.com/zenglingqian/zcode-proxy/releases/latest/download/ZCodeProxy-Setup-v1.0.0.exe">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 4v11"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/>
+            </svg>
+            下载 Windows 安装包
+          </a>
+          <a class="btn btn-ghost" href="https://pan.quark.cn/s/f2651ed7200e?pwd=zWxr" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M7 18a4.5 4.5 0 0 1-.4-8.98A6 6 0 0 1 18.3 10.6 3.8 3.8 0 0 1 17.6 18"/>
+              <path d="M12 11.5V18"/><path d="m9.5 15.5 2.5 2.5 2.5-2.5"/>
+            </svg>
+            备用下载（夸克网盘）
+          </a>
+          <a class="btn btn-ghost" href="#setup">三步接入 ↓</a>
+        </div>
+        <p class="hero-filehint rise rise-3">GitHub Releases 始终最新版 · 无需管理员权限 · 装到 %LocalAppData%\ZCodeProxy</p>
+      </div>
+
+      <div class="hero-visual rise rise-2">
+        <div class="stripes" aria-hidden="true"></div>
+        <div class="connect-card">
+          <div class="connect-title">
+            <strong>装好后，在你常用的软件里填这三行</strong>
+            <span><i aria-hidden="true"></i>127.0.0.1:8787</span>
+          </div>
+          <div class="field">
+            <div class="field-top">
+              <span class="field-label">API 地址 / Base URL</span>
+              <button class="copy-btn" data-copy="http://127.0.0.1:8787/v1" aria-label="复制 API 地址">
+                <svg class="ic-copy" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                <svg class="ic-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"/></svg>
+                <span aria-live="polite">复制</span>
+              </button>
+            </div>
+            <div class="field-value">http://127.0.0.1:8787/v1</div>
+          </div>
+          <div class="field">
+            <div class="field-top">
+              <span class="field-label">API Key</span>
+              <button class="copy-btn" data-copy="zcode" aria-label="复制 API Key 示例值">
+                <svg class="ic-copy" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                <svg class="ic-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"/></svg>
+                <span aria-live="polite">复制</span>
+              </button>
+            </div>
+            <div class="field-value">zcode</div>
+            <p class="field-hint">未设置 apiKey 时随便填，客户端不校验</p>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <div class="field-top">
+              <span class="field-label">模型名</span>
+              <button class="copy-btn" data-copy="zcode" aria-label="复制模型名">
+                <svg class="ic-copy" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                <svg class="ic-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"/></svg>
+                <span aria-live="polite">复制</span>
+              </button>
+            </div>
+            <div class="field-value">zcode</div>
+            <p class="field-hint">国内 BigModel 账号选 zcode-bigmodel，以 /v1/models 为准</p>
+          </div>
+          <div class="connect-foot">POST /v1/chat/completions<span class="arr">→</span>ZCode agent<span class="arr">→</span>SSE 流式回传</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 功能特性 ─── -->
+  <section class="features section-pad" id="features" data-od-id="features">
+    <div class="wrap">
+      <div class="section-header">
+        <span class="eyebrow">功能特性</span>
+        <h2>填一个普通模型，得到一整个 agent。</h2>
+        <p>代理不透传参数、不做编排——它把请求交给 ZCode 引擎，让 agent 自己决定怎么把活干完。</p>
+      </div>
+      <div class="feature-grid">
+        <div class="feature feature-card" data-od-id="feature-openai">
+          <span class="num">01 · 协议</span>
+          <h3>OpenAI 兼容，第三方软件零改造接入</h3>
+          <p>标准 <code>POST /v1/chat/completions</code>（流式 / 非流式）与 <code>GET /v1/models</code>。不装插件、不改代码，填完地址就能用。引擎的 text_delta 增量直接映射为 OpenAI SSE chunk，打字机效果原样透传。</p>
+          <div class="chip-row">
+            <span class="chip">/v1/chat/completions</span>
+            <span class="chip">/v1/models</span>
+            <span class="chip">stream: SSE</span>
+          </div>
+        </div>
+        <div class="feature" data-od-id="feature-agent">
+          <span class="num">02 · 模型观</span>
+          <svg class="fi" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/><circle cx="12" cy="12" r="2.2"/></svg>
+          <h3>Agent 即模型</h3>
+          <p>不透传 function calling——ZCode 自主决定何时使用工具。你调用的是「能干活的 agent」，不是一堆等你编排的裸函数。</p>
+        </div>
+        <div class="feature" data-od-id="feature-session">
+          <span class="num">03 · 记忆</span>
+          <svg class="fi" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.5-6.2M21 12a9 9 0 0 1-15.5 6.2"/><path d="M18.5 2v4h-4"/><path d="M5.5 22v-4h4"/></svg>
+          <h3>自动会话亲和</h3>
+          <p>同一任务的连续对话自动续接同一个 ZCode 原生会话，工具执行过程记忆不丢；并发任务严格隔离，绝不串答。</p>
+        </div>
+        <div class="feature" data-od-id="feature-account">
+          <span class="num">04 · 账号</span>
+          <svg class="fi" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3.5 20c.6-3.3 2.9-5 5.5-5s4.9 1.7 5.5 5"/><path d="M17 3.5a3.5 3.5 0 0 1 0 7"/><path d="M18.5 15.4c1.3.7 2.3 2 2.7 4.6"/></svg>
+          <h3>账号双体系</h3>
+          <p>国际 Z.AI / 国内 BigModel 两个槽位，一键检测连通性；凭据与 ZCode 桌面版共享，登录一次两边可用。</p>
+        </div>
+        <div class="feature" data-od-id="feature-tray">
+          <span class="num">05 · 桌面体验</span>
+          <svg class="fi" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M2 20h20"/><path d="M9 12.5v-1.6a1.4 1.4 0 0 1 1.4-1.4h3.2a1.4 1.4 0 0 1 1.4 1.4v1.6"/></svg>
+          <h3>托盘常驻，免配置</h3>
+          <p>关闭窗口最小化到托盘、服务不停；开机自启；自动探测 ZCode 安装路径，双击启动无需任何环境变量。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 兼容软件 ─── -->
+  <section class="proof" data-od-id="proof">
+    <div class="wrap">
+      <span class="eyebrow">这些软件都能直接接</span>
+      <div class="proof-logos">
+        <span class="proof-logo">Cherry Studio</span>
+        <span class="proof-logo">Dify</span>
+        <span class="proof-logo">Cline</span>
+        <span class="proof-logo">Roo Code</span>
+        <span class="proof-logo">LangChain</span>
+        <span class="proof-logo">OpenAI SDK</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 三步接入 ─── -->
+  <section class="section-pad" id="setup" data-od-id="setup">
+    <div class="wrap">
+      <div class="section-header">
+        <span class="eyebrow">快速开始</span>
+        <h2>三步接好。</h2>
+        <p>从双击安装包到第一次对话，大约三分钟。前提：本机已安装 ZCode 桌面版（凭据与引擎都来自它）。</p>
+      </div>
+      <div class="steps">
+        <div class="step" data-od-id="step-1">
+          <span class="step-num">01</span>
+          <h3>安装</h3>
+          <p>双击 <code>ZCodeProxy-Setup-v1.0.0.exe</code>。没有管理员弹窗，装到 <code>%LocalAppData%\ZCodeProxy</code>，可勾选桌面快捷方式与开机自启。</p>
+        </div>
+        <div class="step" data-od-id="step-2">
+          <span class="step-num">02</span>
+          <h3>连接账号</h3>
+          <p>启动后看主界面账号卡：显示「已连接」即可直接使用；显示「未登录」就去 ZCode 桌面版登录一次——凭据库共享，代理自动跟上。</p>
+        </div>
+        <div class="step" data-od-id="step-3">
+          <span class="step-num">03</span>
+          <h3>填三个字段</h3>
+          <p>在任何支持自定义 OpenAI 接口的软件里，填上方的 API 地址、API Key 和模型名，保存后直接对话。</p>
+        </div>
+      </div>
+      <div class="code" data-od-id="code-sample">
+        <div class="code-head">
+          <span>Python · openai SDK</span>
+          <button class="copy-btn" data-copy="from openai import OpenAI
+client = OpenAI(base_url=&quot;http://127.0.0.1:8787/v1&quot;, api_key=&quot;anything&quot;)
+
+r = client.chat.completions.create(
+    model=&quot;zcode&quot;,
+    messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;帮我在 D:/test 写一个天气爬虫&quot;}],
+    stream=True,
+)
+for chunk in r:
+    print(chunk.choices[0].delta.content or &quot;&quot;, end=&quot;&quot;)" aria-label="复制 Python 示例代码">
+            <svg class="ic-copy" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+            <svg class="ic-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"/></svg>
+            <span aria-live="polite">复制</span>
+          </button>
+        </div>
+        <pre><code><span class="k">from</span> openai <span class="k">import</span> OpenAI
+client = OpenAI(base_url=<span class="s">"http://127.0.0.1:8787/v1"</span>, api_key=<span class="s">"anything"</span>)
+
+r = client.chat.completions.create(
+    model=<span class="s">"zcode"</span>,
+    messages=[{<span class="s">"role"</span>: <span class="s">"user"</span>, <span class="s">"content"</span>: <span class="s">"帮我在 D:/test 写一个天气爬虫"</span>}],
+    stream=<span class="k">True</span>,
+)
+<span class="k">for</span> chunk <span class="k">in</span> r:
+    <span class="k">print</span>(chunk.choices[0].delta.content <span class="k">or</span> <span class="s">""</span>, end=<span class="s">""</span>)</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 边界与安全 ─── -->
+  <section class="section-pad" id="limits" data-od-id="limits" style="border-top: 1px solid var(--border);">
+    <div class="wrap">
+      <div class="section-header">
+        <span class="eyebrow">先说清楚</span>
+        <h2>它能干什么，不能干什么。</h2>
+        <p>发布页不吹参数，这几条来自真实的已知边界与安全须知，装之前建议读完。</p>
+      </div>
+      <div class="limits-grid">
+        <div>
+          <ul class="limits-list">
+            <li><span class="dash" aria-hidden="true">—</span><span>每个请求新建引擎会话，首 token 延迟约 2–5 秒（引擎常驻，无进程冷启动）；agent 任务耗时较长，客户端超时建议 ≥ 5 分钟，代理侧默认 30 分钟。</span></li>
+            <li><span class="dash" aria-hidden="true">—</span><span>OpenAI 的 tools / function calling 参数不透传——工具调用由 ZCode 自主决定，客户端传了也不会生效。</span></li>
+            <li><span class="dash" aria-hidden="true">—</span><span>图片等多模态消息只取文本部分。</span></li>
+            <li><span class="dash" aria-hidden="true">—</span><span>与 ZCode 桌面版共享登录凭据与会话库，两者可同时使用、互不冲突；账号体系切换需重新登录（凭据按体系独立）。</span></li>
+          </ul>
+        </div>
+        <div class="danger-card">
+          <svg class="di" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 2.5 20h19L12 3z"/><path d="M12 10v4.5"/><path d="M12 17.5h.01"/></svg>
+          <h3>它有真实的执行能力</h3>
+          <p>默认 <code>mode: yolo</code>：ZCode 会自动执行工具（写文件、跑命令）。请保持只监听本机（默认如此），不要把端口暴露到局域网。</p>
+          <p>建议在 <code>config.json</code> 设置 <code>apiKey</code>，必要时用 <code>disallowedTools</code> 收紧可用工具。</p>
+          <div class="chip-row">
+            <span class="chip">mode: yolo</span>
+            <span class="chip">host: 127.0.0.1</span>
+            <span class="chip">apiKey</span>
+            <span class="chip">disallowedTools</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FAQ + 发布信息 ─── -->
+  <section class="section-pad" id="faq" data-od-id="faq" style="border-top: 1px solid var(--border);">
+    <div class="wrap faq-inner">
+      <div class="section-header" style="margin-left:auto;margin-right:auto;text-align:center;max-width:560px;">
+        <span class="eyebrow">常见问题</span>
+        <h2>装之前，常被问到的几件事。</h2>
+      </div>
+      <div class="faq-list">
+        <details data-od-id="faq-mirror">
+          <summary>GitHub 下载慢或失败？<span class="pm" aria-hidden="true">+</span></summary>
+          <p>用夸克网盘备用链接下载：<a href="https://pan.quark.cn/s/f2651ed7200e?pwd=zWxr" target="_blank" rel="noopener">pan.quark.cn/s/f2651ed7200e</a>（提取码 zWxr）。GitHub 主链接始终指向最新版 Release。</p>
+        </details>
+        <details data-od-id="faq-login">
+          <summary>前提是什么？一定要装 ZCode 桌面版吗？<span class="pm" aria-hidden="true">+</span></summary>
+          <p>要。登录凭据与引擎都来自 ZCode 桌面版，应用会自动探测它的安装位置与数据目录，双击启动无需任何环境变量。</p>
+        </details>
+        <details data-od-id="faq-401">
+          <summary>账号卡显示「未登录」或调用报 401 怎么办？<span class="pm" aria-hidden="true">+</span></summary>
+          <p>在 ZCode 桌面版登录一次即可（凭据库共享，代理自动跟上），或点账号卡的「重新登录」按钮走授权流程。</p>
+        </details>
+        <details data-od-id="faq-quota">
+          <summary>报「余额 / 资源包不足」？<span class="pm" aria-hidden="true">+</span></summary>
+          <p>该账号体系没有对应订阅。换另一个模型名试试——<code>zcode</code>（国际 Z.AI）与 <code>zcode-bigmodel</code>（国内 BigModel）的额度互相独立。</p>
+        </details>
+        <details data-od-id="faq-port">
+          <summary>提示端口被占用？<span class="pm" aria-hidden="true">+</span></summary>
+          <p>代理可能已经在运行：打开 <code>http://127.0.0.1:8787/</code> 确认；确要改端口，编辑 <code>config.json</code> 的 <code>port</code> 后重启。</p>
+        </details>
+      </div>
+
+      <div class="release-info" data-od-id="release-info">
+        <h3>发布信息 · Release</h3>
+        <dl class="ri-grid">
+          <div><dt>版本</dt><dd>v1.0.0</dd></div>
+          <div><dt>发布日期</dt><dd>2026-11-14</dd></div>
+          <div><dt>主下载</dt><dd><a href="https://github.com/zenglingqian/zcode-proxy/releases/latest/download/ZCodeProxy-Setup-v1.0.0.exe">GitHub Releases · 始终最新版</a></dd></div>
+          <div><dt>备用</dt><dd><a href="https://pan.quark.cn/s/f2651ed7200e?pwd=zWxr" target="_blank" rel="noopener">夸克网盘 · 提取码 zWxr</a></dd></div>
+          <div><dt>文件</dt><dd>ZCodeProxy-Setup-v1.0.0.exe</dd></div>
+          <div><dt>大小</dt><dd>98.96 MB（103,768,868 字节）</dd></div>
+        </dl>
+        <p class="ri-note">主下载链接始终指向 GitHub Releases 的最新版本；文件名、大小与下方校验和对应 v1.0.0，后续版本以发布说明为准。</p>
+        <div class="sha-row">
+          <div class="field-top">
+            <span class="field-label">SHA-256 · v1.0.0</span>
+            <button class="copy-btn" data-copy="55f01d75c799547b22b4c7336738d2c8c2557021557cce000e0c693cb8a804e8" aria-label="复制 SHA-256 校验和">
+              <svg class="ic-copy" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+              <svg class="ic-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12.5 5 5L20 6.5"/></svg>
+              <span aria-live="polite">复制</span>
+            </button>
+          </div>
+          <div class="sha-code">55f01d75c799547b22b4c7336738d2c8c2557021557cce000e0c693cb8a804e8</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 尾部 CTA ─── -->
+  <section class="closing" data-od-id="closing-cta">
+    <div class="wrap">
+      <h2>三分钟接好，开始使唤你的 agent。</h2>
+      <p>下载安装包，双击，填三个字段。剩下的事——读写文件、执行命令、连续记忆——交给 ZCode。</p>
+      <a class="btn btn-pill" href="https://github.com/zenglingqian/zcode-proxy/releases/latest/download/ZCodeProxy-Setup-v1.0.0.exe">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 4v11"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/>
+        </svg>
+        下载 ZCodeProxy 最新版
+      </a>
+      <p class="filehint">GitHub Releases 始终最新版 · Windows 10 / 11 x64 · <a href="https://pan.quark.cn/s/f2651ed7200e?pwd=zWxr" target="_blank" rel="noopener">网盘备用（提取码 zWxr）</a></p>
+    </div>
+  </section>
+</main>
+
+<footer data-od-id="footer">
+  <div class="wrap">
+    <span class="mono">ZCodeProxy · v1.0.0 · 本机运行 · 代理监听 127.0.0.1:8787</span>
+    <div class="links">
+      <a href="使用说明.md">使用说明</a>
+      <a href="README.md">完整文档</a>
+      <a href="#top">回到顶部 ↑</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var btns = document.querySelectorAll('.copy-btn');
+    btns.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var text = btn.getAttribute('data-copy') || '';
+        var done = function () {
+          btn.classList.add('copied');
+          var label = btn.querySelector('span[aria-live]');
+          if (label) label.textContent = '已复制';
+          clearTimeout(btn._t);
+          btn._t = setTimeout(function () {
+            btn.classList.remove('copied');
+            if (label) label.textContent = '复制';
+          }, 1800);
+        };
+        var fallback = function () {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); done(); } catch (e) { /* 剪贴板不可用时静默 */ }
+          ta.remove();
+        };
+        if (navigator.clipboard && window.isSecureContext) {
+          navigator.clipboard.writeText(text).then(done, fallback);
+        } else {
+          fallback();
+        }
+      });
+    });
+  })();
+</script>
+</body>
+</html>
