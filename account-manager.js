@@ -16,18 +16,23 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { getCredentialCache, resolveDataRoot, decryptAny } = require('./engine');
+const { getCredentialCache, resolveDataRoot, decryptAny, ensureCredentialCacheSync } = require('./engine');
 
+// 桌面版热更新（2026-11）后凭据键有两代命名：
+//   旧：oauth:zai:* / oauth:bigmodel:*
+//   新：国内域 zai 登录写 oauth:zai_cn:*；ZAI 账号关联的 BigModel 凭据在 oauth:linked_bigmodel
+// 引擎 providerId（account:zai-*）不变，只是凭据存储键名变了 —— 检测需两代都认。
 const FAMILIES = {
   zai: {
-    label: '国际 Z.AI',
-    oauthPrefix: 'oauth:zai',
+    label: 'Z.AI 账号',
+    oauthPrefixes: ['oauth:zai', 'oauth:zai_cn'],
     providerPrefix: 'account:zai-',
     loginFamily: 'zai',
   },
   bigmodel: {
     label: '国内 BigModel',
-    oauthPrefix: 'oauth:bigmodel',
+    oauthPrefixes: ['oauth:bigmodel'],
+    linkedKey: 'oauth:linked_bigmodel',
     providerPrefix: 'account:bigmodel-',
     loginFamily: 'bigmodel',
   },
@@ -62,7 +67,11 @@ function accountName(family) {
 function hasFamilyCredentials(cred, family) {
   const f = FAMILIES[family];
   if (!cred) return false;
-  if (typeof cred[`${f.oauthPrefix}:access_token`] === 'string' && cred[`${f.oauthPrefix}:access_token`].trim()) return true;
+  for (const prefix of f.oauthPrefixes) {
+    const token = cred[`${prefix}:access_token`];
+    if (typeof token === 'string' && token.trim()) return true;
+  }
+  if (f.linkedKey && typeof cred[f.linkedKey] === 'string' && cred[f.linkedKey].trim()) return true;
   return Object.keys(cred).some((k) => k.startsWith('account-provider:account:' + f.providerPrefix.slice('account:'.length)) && String(cred[k] || '').trim());
 }
 
@@ -79,7 +88,9 @@ function classifyError(text) {
  * @param {object} config 代理配置（用于匹配 model → family）
  * @param {object} deps { getLastCallByFamily():Record } 由 proxy-controller 提供
  */
-function getAccounts(config, { getLastCallByFamily = () => ({}) } = {}) {
+function getAccounts(config, { getLastCallByFamily = () => ({}), zcodeExe } = {}) {
+  // 桌面版可能刚完成登录：先同步刷新凭据缓存（账号名/JWT 从新文件解密；mtime 未变时零开销）
+  try { ensureCredentialCacheSync(zcodeExe || config?.zcodeExe); } catch { /* best-effort，沿用缓存 */ }
   const { file, cred } = readCredFile();
   const lastCalls = getLastCallByFamily() || {};
   // in-memory 优先，其次模块内 store
@@ -121,10 +132,11 @@ function getAccounts(config, { getLastCallByFamily = () => ({}) } = {}) {
 }
 
 /**
- * 删除账号：从共享凭据文件清理该体系全部键。
- * - oauth:<family>:*（access_token/refresh_token/user_info）
+ * 删除账号：从共享凭据文件清理该体系全部键（覆盖两代键名）。
+ * - oauth:<family>:* 与 oauth:zai_cn:*（热更新后国内域 zai 登录的存储键）
+ * - oauth:linked_bigmodel（ZAI 账号关联的 BigModel 凭据，删 bigmodel 时清理）
  * - account-provider:*:identity / auth-source / api-key（含该体系标识的）
- * - oauth:active_provider 仅当其值等于该体系时删除
+ * - oauth:active_provider 仅当其值属于该体系时删除（zai 体系可能为 'zai' 或 'zai_cn'）
  * 不动 zcodejwttoken（两体系共享）与 project-key-location（过期无害）。
  */
 async function removeAccount(family, env = process.env) {
@@ -136,13 +148,16 @@ async function removeAccount(family, env = process.env) {
   const removed = [];
   const next = { ...cred };
   for (const key of Object.keys(next)) {
-    if (key.startsWith(meta.oauthPrefix + ':')) { delete next[key]; removed.push(key); continue; }
+    if (meta.oauthPrefixes.some((p) => key.startsWith(p + ':'))) { delete next[key]; removed.push(key); continue; }
+    if (meta.linkedKey && key === meta.linkedKey) { delete next[key]; removed.push(key); continue; }
     if (key.startsWith('account-provider:') && key.includes(':' + meta.providerPrefix)) { delete next[key]; removed.push(key); continue; }
   }
   if (typeof next['oauth:active_provider'] === 'string') {
     try {
       const active = await decryptAny(next['oauth:active_provider'], file, undefined, env);
-      if (active === meta.loginFamily) { delete next['oauth:active_provider']; removed.push('oauth:active_provider'); }
+      const ownsActive = active === meta.loginFamily
+        || (family === 'zai' && active === 'zai_cn'); // 国内域下 zai 登录的 active 值为 zai_cn
+      if (ownsActive) { delete next['oauth:active_provider']; removed.push('oauth:active_provider'); }
     } catch { /* ignore */ }
   }
   fs.writeFileSync(file, JSON.stringify(next, null, 2));

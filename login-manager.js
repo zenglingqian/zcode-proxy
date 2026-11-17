@@ -10,7 +10,7 @@
 const { spawn } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
-const { getCredentialState, ensureCredentialCache, ensureKeyringShimFiles, resolveDataRoot } = require('./engine');
+const { getCredentialState, ensureCredentialCacheSync, ensureKeyringShimFiles, resolveDataRoot } = require('./engine');
 
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -118,6 +118,7 @@ class LoginManager {
       }
       session.message = message;
       clearTimeout(session._timer);
+      clearInterval(session._poll); // 成功/失败/超时后停止凭据轮询，避免残留 interval
       log(`[login] ${family} 登录流程结束: ${state}`);
     };
 
@@ -127,8 +128,10 @@ class LoginManager {
       else if (session.state === 'waiting') finish('failed', `登录进程退出（码 ${code}），请重试或查看服务日志`);
     });
 
-    // 成功判定②：凭据文件里的 JWT 出现/变化（进程可能还没退出就已写好凭据）
+    // 成功判定②：凭据文件里的 JWT 出现/变化（进程可能还没退出就已写好凭据）。
+    // 必须先同步刷新凭据缓存 —— getCredentialState 读的是内存缓存，不刷新则永远看不到新 JWT
     session._poll = setInterval(() => {
+      try { ensureCredentialCacheSync(zcodeExe, log); } catch { /* ignore */ }
       const now = getCredentialState();
       let nowRaw = null;
       try { nowRaw = require('node:fs').readFileSync(now.file, 'utf8'); } catch { /* ignore */ }

@@ -96,8 +96,9 @@ function nativeKeyring(zcodeExe, log) {
 
 const V2_RE = /^enc:v2:(os):([0-9a-f]{24}):(.+)$/;
 
-/** 解密 enc:v2:os 值：密钥在 Windows 凭据管理器（service = "ZCode Credential Encryption"） */
-async function v2Decrypt(value, credPath, zcodeExe, log) {
+/** 解密 enc:v2:os 值：密钥在 Windows 凭据管理器（service = "ZCode Credential Encryption"）。
+ *  全程同步（keyring getPassword 为同步 API）——async 包装保留给旧调用点 */
+function v2DecryptSync(value, credPath, zcodeExe, log) {
   const m = value.match(V2_RE);
   if (!m) throw new Error('非 enc:v2 格式');
   const [, , fp, blob] = m;
@@ -116,21 +117,59 @@ async function v2Decrypt(value, credPath, zcodeExe, log) {
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
 }
 
+async function v2Decrypt(value, credPath, zcodeExe, log) {
+  return v2DecryptSync(value, credPath, zcodeExe, log);
+}
+
 async function decryptAny(value, credPath, zcodeExe, env, log) {
   if (typeof value !== 'string' || !value) return '';
-  if (value.startsWith('enc:v2:')) return v2Decrypt(value, credPath, zcodeExe, log);
+  if (value.startsWith('enc:v2:')) {
+    if (!zcodeExe) {
+      zcodeExe = _lastCredZcodeExe || resolveZcodePaths()?.zcodeExe || null;
+      if (zcodeExe) _lastCredZcodeExe = zcodeExe;
+    }
+    return v2Decrypt(value, credPath, zcodeExe, log);
+  }
   return decryptCredentialValue(value, env);
 }
 
-// ---------- 凭据缓存（异步解密一次，同步读取） ----------
+// ---------- 凭据缓存（解密一次，同步读取） ----------
 
 const _credCache = { mtimeMs: -1, loaded: false, jwt: '', names: {}, activeProvider: null, file: null, fileExists: false };
+// 记住最近一次成功刷新用的 zcodeExe/log，供无参调用方（getCredentialState）自动刷新
+let _lastCredZcodeExe = null;
+let _lastCredLog = null;
+
+/** 同步解密任意凭据值（v1 密钥派生与 v2 keyring 读取均为同步操作），失败返回 '' */
+function decryptAnySync(value, credPath, zcodeExe, env, log) {
+  if (typeof value !== 'string' || !value) return '';
+  try {
+    if (value.startsWith('enc:v2:')) return v2DecryptSync(value, credPath, zcodeExe, log);
+    return decryptCredentialValue(value, env);
+  } catch (err) {
+    log?.(`[cred] 解密失败: ${err.message}`);
+    return '';
+  }
+}
 
 /**
- * 刷新凭据缓存：文件 mtime 变化或缓存为空时重新解密。
- * 引擎启动、回答运行时头、账号状态查询前调用。
+ * 刷新凭据缓存（同步）：文件 mtime 变化或缓存为空时重新解密。
+ * 桌面版登录/热更新会随时改写共享凭据文件，UI 状态查询与登录轮询前调用，
+ * mtime 未变时只有一次 statSync 开销。
+ *
+ * 桌面版热更新（2026-11）后国内域的 zai 登录写入 oauth:zai_cn:* 键（原 oauth:zai:*），
+ * ZAI 账号关联的 BigModel 凭据在 oauth:linked_bigmodel —— 名称读取需覆盖两代键名。
  */
-async function ensureCredentialCache(zcodeExe, log) {
+function ensureCredentialCacheSync(zcodeExe, log) {
+  if (zcodeExe) _lastCredZcodeExe = zcodeExe;
+  if (log) _lastCredLog = log;
+  zcodeExe = _lastCredZcodeExe;
+  log = _lastCredLog;
+  if (!zcodeExe) {
+    // 引擎尚未启动（无缓存路径）时探测本机安装，避免 v2 凭据因缺路径解不开
+    zcodeExe = resolveZcodePaths()?.zcodeExe || null;
+    if (zcodeExe) _lastCredZcodeExe = zcodeExe;
+  }
   const file = path.join(resolveDataRoot(), '.zcode', 'v2', 'credentials.json');
   _credCache.file = file;
   let cred = null;
@@ -147,26 +186,39 @@ async function ensureCredentialCache(zcodeExe, log) {
   }
   if (cred && _credCache.loaded && mtimeMs === _credCache.mtimeMs && _credCache.jwt) return _credCache;
   _credCache.mtimeMs = mtimeMs;
-  try {
-    _credCache.jwt = await decryptAny(cred.zcodejwttoken, file, zcodeExe, process.env, log);
-  } catch (err) {
-    _credCache.jwt = '';
-    log?.(`[cred] 读取 JWT 失败: ${err.message}`);
+  _credCache.jwt = decryptAnySync(cred.zcodejwttoken, file, zcodeExe, process.env, log);
+  const userInfoKeys = {
+    zai: ['oauth:zai:user_info', 'oauth:zai_cn:user_info'],
+    bigmodel: ['oauth:bigmodel:user_info'],
+  };
+  for (const family of Object.keys(userInfoKeys)) {
+    _credCache.names[family] = null;
+    for (const key of userInfoKeys[family]) {
+      try {
+        const raw = cred[key];
+        if (!raw) continue;
+        const info = JSON.parse(decryptAnySync(raw, file, zcodeExe, process.env, log));
+        const name = info ? (info.name || info.username || info.email || null) : null;
+        if (name) { _credCache.names[family] = name; break; }
+      } catch { /* 尝试下一个键 */ }
+    }
   }
-  for (const family of ['zai', 'bigmodel']) {
-    try {
-      const raw = cred[`oauth:${family}:user_info`];
-      const info = raw ? JSON.parse(await decryptAny(raw, file, zcodeExe, process.env, log)) : null;
-      _credCache.names[family] = info ? (info.name || info.username || info.email || null) : null;
-    } catch { _credCache.names[family] = null; }
+  // linked_bigmodel（ZAI 账号自带关联的 BigModel）没有独立 user_info，账号名与 ZAI 一致
+  if (!_credCache.names.bigmodel && typeof cred['oauth:linked_bigmodel'] === 'string' && cred['oauth:linked_bigmodel'].trim()) {
+    _credCache.names.bigmodel = _credCache.names.zai || null;
   }
-  try {
-    _credCache.activeProvider = cred['oauth:active_provider']
-      ? await decryptAny(cred['oauth:active_provider'], file, zcodeExe, process.env, log)
-      : null;
-  } catch { _credCache.activeProvider = null; }
+  _credCache.activeProvider = cred['oauth:active_provider']
+    ? (decryptAnySync(cred['oauth:active_provider'], file, zcodeExe, process.env, log) || null)
+    : null;
   _credCache.loaded = true;
   return _credCache;
+}
+
+/**
+ * 刷新凭据缓存（异步包装，兼容旧调用点）：引擎启动、回答运行时头前调用。
+ */
+async function ensureCredentialCache(zcodeExe, log) {
+  return ensureCredentialCacheSync(zcodeExe, log);
 }
 
 function readZcodeJwt() {
@@ -177,8 +229,10 @@ function getCredentialCache() {
   return _credCache;
 }
 
-/** 凭据连接状态（管理台展示用）：不打印敏感值，只回报有无与来源 */
+/** 凭据连接状态（管理台展示用）：不打印敏感值，只回报有无与来源。
+ *  先同步刷新缓存 —— 桌面版可能刚完成登录（"登录后自动读取新凭据"承诺的实现点） */
 function getCredentialState() {
+  try { ensureCredentialCacheSync(); } catch { /* 刷新失败则回报缓存值 */ }
   const file = path.join(resolveDataRoot(), '.zcode', 'v2', 'credentials.json');
   const c = _credCache;
   return { file, hasJwt: Boolean(c.jwt), fileExists: Boolean(c.fileExists), activeProvider: c.activeProvider };
@@ -797,4 +851,4 @@ async function disposeEngine() {
   }
 }
 
-module.exports = { getEngine, isEngineAlive, disposeEngine, readZcodeJwt, getCredentialState, getCredentialCache, ensureCredentialCache, resolveZcodePaths, resolveDataRoot, decryptCredentialValue, decryptAny, dataBaseDir, ZcodeEngine };
+module.exports = { getEngine, isEngineAlive, disposeEngine, readZcodeJwt, getCredentialState, getCredentialCache, ensureCredentialCache, ensureCredentialCacheSync, decryptAnySync, resolveZcodePaths, resolveDataRoot, decryptCredentialValue, decryptAny, dataBaseDir, ZcodeEngine };
